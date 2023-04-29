@@ -69,29 +69,30 @@ $Extracted = Get-ChildItem "extracted"
 foreach ($File in $Extracted){
 #Забираем либо полностью весь файл, либо вычищаем теги Owner и BuiltBy
     if ($ClearOwner) {
-        $Text = (Select-String $File.FullName -Pattern "<Owner>","<BuiltBy>" -NotMatch -Encoding UTF8NoBOM).Line
+        $CubeGridText = (Select-String $File.FullName -Pattern "<Owner>","<BuiltBy>" -NotMatch -Encoding UTF8NoBOM).Line
     }else{
-        $Text = Get-Content $File.FullName -Encoding UTF8NoBOM
+        $CubeGridText = Get-Content $File.FullName -Encoding UTF8NoBOM
     }
 #Ищем строки с тегом DisplayName и из последнего получаем название для чертежа
-    $DisplayName = (Select-String $File.FullName -Pattern "DisplayName")[-1] -match "<DisplayName>(.*)</DisplayName>"
-    $Name = $matches[1] -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
+    [void]((Select-String $File.FullName -Pattern "DisplayName")[-1] -match "<DisplayName>(.*)</DisplayName>")
+    $DisplayName = $matches[1]
+    $DirName = $matches[1] -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
 #Выводим название чертежа и, при наличии тега AutomaticBehaviour, предупреждаем
     $AutomaticBehaviour = (Select-String $File.FullName -Pattern "AutomaticBehaviour").Length
     if ($AutomaticBehaviour -eq 0) {
-        Write-Host $Name
+        Write-Host $DisplayName
     } else {
-        Write-Host $Name -NoNewline
+        Write-Host $DisplayName -NoNewline
         Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
     }
 #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги
-    $Path = $Name+"_"+$File.Name
+    $Path = $DirName+"_"+$File.Name
     $BPFile = $Path+"\bp.sbc"
     New-Item $Path -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
     Set-Content $BPFile $Header1,$Header2,$Header3,$Header4 -Encoding UTF8NoBOM
-    Add-Content $BPFile $Header5$Name$Header5_2 -Encoding UTF8NoBOM
+    Add-Content $BPFile $Header5$DisplayName$Header5_2 -Encoding UTF8NoBOM
     Add-Content $BPFile $Header6,$Header7 -Encoding UTF8NoBOM
-    Add-Content $BPFile $Text -Encoding UTF8NoBOM
+    Add-Content $BPFile $CubeGridText -Encoding UTF8NoBOM
     Add-Content $BPFile $Footer1,$Footer2,$Footer3,$Footer4,$Footer5 -Encoding UTF8NoBOM
 }
 
@@ -100,4 +101,4 @@ Remove-Item "extracted" -Recurse
 
 Write-Host "Готово. Нажмите что-нибудь."
 
-$x = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+[void]$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

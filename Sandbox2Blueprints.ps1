@@ -28,7 +28,7 @@ $CountEntity = 0            #Используется для отображен�
 
 #Получаем данные из Sandbox
 Write-Host "Читаем файл Sandbox"
-
+Write-Host
 $Sandbox = Get-Content SANDBOX_0_0_0_.sbs -Encoding UTF8NoBOM
 
 #Создаем папки
@@ -36,6 +36,7 @@ New-Item "extracted" -ItemType Directory -ErrorAction SilentlyContinue | Out-Nul
 
 #Обрабатываем файл Sandbox.
 Write-Host "Выгрызаем из Sandbox CubeGrid"
+Write-Host
 
 foreach($SandboxLine in $Sandbox){
 #Считаем строки.
@@ -77,8 +78,7 @@ foreach ($File in $Extracted){
     }
 #Ищем строки с тегом DisplayName и из последнего получаем название для чертежа
     [void]((Select-String $File.FullName -Pattern "DisplayName")[-1] -match "<DisplayName>(.*)</DisplayName>")
-    $DisplayName = $matches[1]
-    $DirName = $matches[1] -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
+    $DisplayName = $matches[1] -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
 #Выводим название чертежа и, при наличии тега AutomaticBehaviour, предупреждаем
     $AutomaticBehaviour = (Select-String $File.FullName -Pattern "AutomaticBehaviour").Length
     if ($AutomaticBehaviour -eq 0) {
@@ -88,7 +88,7 @@ foreach ($File in $Extracted){
         Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
     }
 #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги
-    $Path = $DirName+"_"+$File.Name
+    $Path = $DisplayName+"_"+$File.Name
     $BPFile = $Path+"\bp.sbc"
     New-Item $Path -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
     Set-Content $BPFile $Header1,$Header2,$Header3,$Header4 -Encoding UTF8NoBOM
@@ -97,6 +97,7 @@ foreach ($File in $Extracted){
     Add-Content $BPFile $CubeGridText -Encoding UTF8NoBOM
     Add-Content $BPFile $Footer1,$Footer2,$Footer3,$Footer4,$Footer5 -Encoding UTF8NoBOM
 }
+Write-Host
 
 #Обработка связанных объектов
 if ($CreateMultiGrid) {
@@ -121,6 +122,8 @@ if ($CreateMultiGrid) {
         }    
     }
     Write-Host "Проверка связей завершена"
+    Write-Host
+
 #Создаем мультиобъекты, пока список связей не опустеет
     Write-Host "Создание мультиобъектов"
     while ($Links.Count -ne 0){
@@ -129,14 +132,14 @@ if ($CreateMultiGrid) {
         do {
             $TempFileList = $Links | Where-Object {$_.in -in $CubeGridFileList}
             foreach ($Temp in $TempFileList) {
-                $Links.Remove($Temp)
+                [void]($Links.Remove($Temp))
             }
             $CubeGridFileList += $TempFileList.out
             $LinksIn = $TempFileList.Count
 
             $TempFileList = $Links | Where-Object {$_.out -in $CubeGridFileList}
             foreach ($Temp in $TempFileList) {
-                $Links.Remove($Temp)
+                [void]($Links.Remove($Temp))
             }
             $CubeGridFileList += $TempFileList.in
             $LinksOut = $TempFileList.Count
@@ -156,8 +159,8 @@ if ($CreateMultiGrid) {
         }
 
         [void]((Select-String ("extracted\"+$MaxCubeBlockFile) -Pattern "DisplayName")[-1] -match "<DisplayName>(.*)</DisplayName>")
-        $DisplayName = $matches[1] + " Multi"
-        $DirName = $matches[1] -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
+        $DisplayName = ($matches[1] -replace '["?]','_') + " Multi"         #Заменяем символы, которые не подходят для имени файла
+        $DirName = $matches[1] -replace '["?]','_'                          #Заменяем символы, которые не подходят для имени файла
 
 #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги заголовка
         $Path = $DirName+"_"+$MaxCubeBlockFile+" Multi"
@@ -193,6 +196,7 @@ if ($CreateMultiGrid) {
         }
     }
 }
+Write-Host
 
 #Удаляем временные файлы
 Remove-Item "extracted" -Recurse

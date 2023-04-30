@@ -1,5 +1,5 @@
 #Настройки
-$ClearOwner = $true         #Удалять теги Owner и BuiltBy?
+$ClearOwner = $false         #Удалять теги Owner и BuiltBy?
 $CreateMultiGrid = $true    #Создавать чертежи объединенных объектов?
 
 #Текст обертки для чертежей
@@ -18,50 +18,24 @@ $Footer4 = "</ShipBlueprints>"
 $Footer5 = "</Definitions>"
 
 #Инициализируем переменные
-$EntityBaseLevel = 0        #Указывает уровень вложенности EntityBase. Работаем только с первым уровнем.
-$CubeGridExtracting = 0     #Флаг извлечения CubeGrid. Используется из-за наличия вложенных CubeGrid.
 $CubeGridFile = 0           #Используется как имя файла для извлеченных CubeGrid
-$Index = -1                 #Используется для подсчета строк в файле Sandbox
-$StartIndex = 0             #Используется для отметки начала блока CubeGrid
-$CountEntity = 0            #Используется для отображения процесса при проверке связей. Процесс слишком долгий...
+$CountEntity = 0            #Используется для отображения процесса при проверке связей. Процесс иногда слишком долгий...
 
-
-#Получаем данные из Sandbox
-Write-Host "Читаем файл Sandbox"
-Write-Host
-$Sandbox = Get-Content SANDBOX_0_0_0_.sbs -Encoding UTF8NoBOM
+#Переменные для работы c Select-Xml
+$SENamespace = @{xsi = "http://www.w3.org/2001/XMLSchema-instance"}
+$XPathCubeGrid = '/MyObjectBuilder_Sector/SectorObjects/MyObjectBuilder_EntityBase[@xsi:type="MyObjectBuilder_CubeGrid"]'
 
 #Создаем папки
 New-Item "extracted" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
 
 #Обрабатываем файл Sandbox.
-Write-Host "Выгрызаем из Sandbox CubeGrid"
+Write-Host "Выгрызаем CubeGrid из Sandbox"
 Write-Host
 
-foreach($SandboxLine in $Sandbox){
-#Считаем строки.
-    $Index +=1
-#Ищем объекты EntityBase. При нахождении - увеличиваем количество дочерних объектов из-за того, что объекты могут быть вложенными.
-    if ($SandboxLine.Contains("<MyObjectBuilder_EntityBase")) {
-        $EntityBaseLevel += 1
-    }
-#Если объект - CubeGrid, это первый уровень вложенности и флаг извлечения не установлен, то сохраняем номер текущей строки, увеличиваем номер файла и включаем флаг извлечения.
-    if (($SandboxLine.Contains("MyObjectBuilder_CubeGrid")) -and ($EntityBaseLevel -eq 1) -and ($CubeGridExtracting -eq 0)) {
-        $CubeGridExtracting = 1
-        $CubeGridFile += 1
-        $StartIndex = $Index
-    }
-#Если найден конец обрабатываемого объекта CubeGrid, то сохраняем объект в отдельный файл без тэгов самого объекта.
-    if (($SandboxLine.Contains("</MyObjectBuilder_EntityBase")) -and ($EntityBaseLevel -eq 1) -and ($CubeGridExtracting -eq 1)) {
-        $CubeGridExtracting = 0
-        $Path = "extracted\"+$CubeGridFile
-        Set-Content $Path $Sandbox[($StartIndex+1)..($Index-1)] -Encoding UTF8NoBOM
-    }
-#Уменьшаем количество вложенности, если найден конец объекта.
-    if ($SandboxLine.Contains("</MyObjectBuilder_EntityBase")) {
-        $EntityBaseLevel -= 1
-    }
-
+Select-Xml -Path SANDBOX_0_0_0_.sbs -XPath $XPathCubeGrid -Namespace $SENamespace | ForEach-Object {
+    $CubeGridFile +=1
+    $CubeGrid = (($_.Node.OuterXml).Split("`r`n").Split("`r").Split("`n"))
+    Set-Content ("extracted\"+$CubeGridFile) $CubeGrid[1..($CubeGrid.Length-2)]
 }
 
 #Обрабатываем полученные объекты CubeGrid

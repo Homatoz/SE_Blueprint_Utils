@@ -35,7 +35,7 @@ Write-Host
 Select-Xml -Path SANDBOX_0_0_0_.sbs -XPath $XPathCubeGrid -Namespace $SENamespace | ForEach-Object {
     $CubeGridFile +=1
     $CubeGrid = (($_.Node.OuterXml).Split("`r`n").Split("`r").Split("`n"))
-    Set-Content ("extracted\"+$CubeGridFile) $CubeGrid[1..($CubeGrid.Length-2)]
+    Set-Content ("extracted\"+$CubeGridFile.ToString().PadLeft(4,"0")) $CubeGrid[1..($CubeGrid.Length-2)]
 }
 
 #Обрабатываем полученные объекты CubeGrid
@@ -62,7 +62,7 @@ foreach ($File in $Extracted){
         Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
     }
 #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги
-    $Path = $DisplayName+"_"+$File.Name
+    $Path = $File.Name+"_"+$DisplayName
     $BPFile = $Path+"\bp.sbc"
     New-Item $Path -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
     Set-Content $BPFile $Header1,$Header2,$Header3,$Header4 -Encoding UTF8NoBOM
@@ -119,7 +119,7 @@ if ($CreateMultiGrid) {
             $LinksOut = $TempFileList.Count
         } until (($LinksIn -eq 0) -and ($LinksOut -eq 0))
 #Очищаем полученный список от дублей
-        $CubeGridFileList = $CubeGridFileList | Select-Object -Unique
+        $CubeGridFileList = $CubeGridFileList | Sort-Object -Unique
 #Вычисляем наиболее объемный (в блоках) объект и берем его имя для чертежа
         $CountCubeBlocks = 0
         $MaxCubeBlockFile = ""
@@ -137,7 +137,7 @@ if ($CreateMultiGrid) {
         $DirName = $matches[1] -replace '["?]','_'                          #Заменяем символы, которые не подходят для имени файла
 
 #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги заголовка
-        $Path = $DirName+"_"+$MaxCubeBlockFile+" Multi"
+        $Path = $MaxCubeBlockFile+"_"+$DirName+" Multi"
         $BPFile = $Path+"\bp.sbc"
         New-Item $Path -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
         Set-Content $BPFile $Header1,$Header2,$Header3,$Header4 -Encoding UTF8NoBOM
@@ -168,6 +168,7 @@ if ($CreateMultiGrid) {
             Write-Host $DisplayName -NoNewline
             Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
         }
+        Add-Content MultiList ($Path+" - "+$CubeGridFileList -join " ")
     }
 }
 Write-Host

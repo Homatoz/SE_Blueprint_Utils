@@ -182,8 +182,62 @@ function ExtractGrid {
     Remove-Item -Path $PathToExtracted -Recurse
 }
 
-ExtractGrid ".\SANDBOX_0_0_0_.sbs" "."
-
-Write-Host "Готово. Нажмите что-нибудь."
-
-$host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
+do {
+    Clear-Host
+    Write-Host "================================== Настройки =================================="
+    if ($ClearOwner) {
+        Write-Host "[X]" -NoNewline
+    } else {
+        Write-Host "[ ]" -NoNewline
+    }
+    Write-Host " Q: Удалять информацию об изначальном владении объектом?"
+    if ($CreateMultiGrid) {
+        Write-Host "[X]" -NoNewline
+    } else {
+        Write-Host "[ ]" -NoNewline
+    }
+    Write-Host " W: Создавать чертежи объединенных объектов?"
+    Write-Host
+    Write-Host "================================== Действия ==================================="
+    Write-Host "1: Обработать файл мира в папке со скриптом"
+    Write-Host "2: Выбрать файл мира для обработки и папку для сохранения" -ForegroundColor DarkRed
+    Write-Host "3: Выбрать папку для обработки файлов мира во вложенных папках" -ForegroundColor DarkRed
+    Write-Host "4: Выбрать папку для сохранения всех обработанных файлов мира из папки с игрой" -ForegroundColor DarkRed
+    Write-Host "0: Выход"
+    $MenuItem = Read-Host "Сделайте выбор"
+    switch ($MenuItem) {
+        {@("q","Q","й","Й") -contains $_ } {
+            $ClearOwner = -not $ClearOwner
+        }
+        {@("w","W","ц","Ц") -contains $_ } {
+            $CreateMultiGrid = -not $CreateMultiGrid
+        }
+        "1" {
+            Clear-Host
+            ExtractGrid ".\SANDBOX_0_0_0_.sbs" "."
+            Write-Host "Готово. Нажмите что-нибудь."
+            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
+        }
+        "2" {
+            Clear-Host
+            Write-Host "Данный функционал пока не реализован" -ForegroundColor DarkRed
+            Write-Host "Нажмите что-нибудь."
+            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
+        }
+        "3" {
+            Clear-Host
+            Write-Host "Данный функционал пока не реализован" -ForegroundColor DarkRed
+            Write-Host "Нажмите что-нибудь."
+            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
+        }
+        "4" {
+            Clear-Host
+            Write-Host "Данный функционал пока не реализован" -ForegroundColor DarkRed
+            Write-Host "Нажмите что-нибудь."
+            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
+        }
+        "0" {
+            return
+        }
+    }
+} until ($input -eq '0')

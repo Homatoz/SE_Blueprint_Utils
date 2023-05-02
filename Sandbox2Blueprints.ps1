@@ -23,6 +23,12 @@ $XPathCubeGrid = '/MyObjectBuilder_Sector/SectorObjects/MyObjectBuilder_EntityBa
 
 function ExtractGrid {
     param ([string]$PathToSandbox, [string]$BPPath)
+
+    #Проверяем наличие файла SANDBOX_0_0_0_.sbs
+    if (-not (Test-Path $PathToSandbox -PathType Leaf)) {
+        Write-Host "Файл SANDBOX_0_0_0_.sbs отсутствует, обработка не может быть произведена."
+        return
+    }
     
     #Инициализируем переменные
     $CubeGridFile = 0           #Используется как имя файла для извлеченных CubeGrid

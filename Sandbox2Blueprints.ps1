@@ -21,6 +21,15 @@ $Footer5 = "</Definitions>"
 $SENamespace = @{xsi = "http://www.w3.org/2001/XMLSchema-instance"}
 $XPathCubeGrid = '/MyObjectBuilder_Sector/SectorObjects/MyObjectBuilder_EntityBase[@xsi:type="MyObjectBuilder_CubeGrid"]'
 
+#Объекты для выбора файлов и папок
+Add-Type -AssemblyName System.Windows.Forms
+$FileBrowser = New-Object System.Windows.Forms.OpenFileDialog -Property @{ Filter = "Файл мира|SANDBOX_0_0_0_.sbs" ; Title = "Выберите файл мира" }
+$FolderBrowserRead = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{ Description = "Выберите папку с файлами мира";
+                                                                                      UseDescriptionForTitle = $True}
+$FolderBrowserSave = New-Object System.Windows.Forms.FolderBrowserDialog -Property @{ InitialDirectory = $env:APPDATA+"\SpaceEngineers\Blueprints\local\";
+                                                                                      Description = "Выберите папку для сохранения чертежей";
+                                                                                      UseDescriptionForTitle = $True}
+
 function ExtractGrid {
     param ([string]$PathToSandbox, [string]$BPPath)
 
@@ -179,7 +188,7 @@ function ExtractGrid {
                 Write-Host $DisplayName -NoNewline
                 Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
             }
-            Add-Content -Path ($BPPath+"\MultiList") -Value ($MultiName+" - "+$CubeGridFileList -join " ")
+            Add-Content -Path ($BPPath+"\MultiList.txt") -Value ($MultiName+" - "+$CubeGridFileList -join " ")
         }
     }
     Write-Host
@@ -205,8 +214,12 @@ do {
     Write-Host " W: Создавать чертежи объединенных объектов?"
     Write-Host
     Write-Host "================================== Действия ==================================="
-    Write-Host "1: Обработать файл мира в папке со скриптом"
-    Write-Host "2: Выбрать файл мира для обработки и папку для сохранения" -ForegroundColor DarkRed
+    if (Test-Path ".\SANDBOX_0_0_0_.sbs" -PathType Leaf) {
+        Write-Host "1: Обработать файл мира в папке со скриптом"
+    } else {
+        Write-Host "1: Обработать файл мира в папке со скриптом" -ForegroundColor DarkRed
+    }
+    Write-Host "2: Выбрать файл мира для обработки и папку для сохранения"
     Write-Host "3: Выбрать папку для обработки файлов мира во вложенных папках" -ForegroundColor DarkRed
     Write-Host "4: Выбрать папку для сохранения всех обработанных файлов мира из папки с игрой" -ForegroundColor DarkRed
     Write-Host "0: Выход"
@@ -218,27 +231,37 @@ do {
         {@("w","W","ц","Ц") -contains $_ } {
             $CreateMultiGrid = -not $CreateMultiGrid
         }
-        "1" {
+        "1" { #Обработать файл мира в папке со скриптом
             Clear-Host
             ExtractGrid ".\SANDBOX_0_0_0_.sbs" "."
-            Write-Host "Готово. Нажмите что-нибудь."
-            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
-        }
-        "2" {
-            Clear-Host
-            Write-Host "Данный функционал пока не реализован" -ForegroundColor DarkRed
             Write-Host "Нажмите что-нибудь."
             $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
         }
-        "3" {
+        "2" { #Выбрать файл мира для обработки и папку для сохранения
             Clear-Host
-            Write-Host "Данный функционал пока не реализован" -ForegroundColor DarkRed
+            if ($FileBrowser.ShowDialog() -eq "OK") {
+                $FileBrowser.InitialDirectory = ([System.IO.FileInfo]$FileBrowser.FileName).Directory
+                $FolderBrowserSave.SelectedPath = ""
+                if ($FolderBrowserSave.ShowDialog() -eq "OK") {
+                    ExtractGrid $FileBrowser.FileName $FolderBrowserSave.SelectedPath
+                } else {
+                    Write-Host "Не выбрана папка для сохранения чертежа"
+                }
+            } else {
+                Write-Host "Не выбран файл мира"
+            }
             Write-Host "Нажмите что-нибудь."
             $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
         }
-        "4" {
+        "3" { #Выбрать папку для обработки файлов мира во вложенных папках
             Clear-Host
-            Write-Host "Данный функционал пока не реализован" -ForegroundColor DarkRed
+            Write-Host "Данный функционал пока не реализован"
+            Write-Host "Нажмите что-нибудь."
+            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
+        }
+        "4" { #Выбрать папку для сохранения всех обработанных файлов мира из папки с игрой
+            Clear-Host
+            Write-Host "Данный функционал пока не реализован"
             Write-Host "Нажмите что-нибудь."
             $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
         }

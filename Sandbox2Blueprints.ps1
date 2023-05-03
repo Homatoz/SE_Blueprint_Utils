@@ -219,9 +219,8 @@ do {
     } else {
         Write-Host "1: Обработать файл мира в папке со скриптом" -ForegroundColor DarkRed
     }
-    Write-Host "2: Выбрать файл мира для обработки и папку для сохранения"
-    Write-Host "3: Выбрать папку для обработки файлов мира во вложенных папках" -ForegroundColor DarkRed
-    Write-Host "4: Выбрать папку для сохранения всех обработанных файлов мира из папки с игрой" -ForegroundColor DarkRed
+    Write-Host "2: Выбрать файл мира для обработки"
+    Write-Host "3: Выбрать папку для обработки файлов мира во вложенных папках"
     Write-Host "0: Выход"
     $MenuItem = Read-Host "Сделайте выбор"
     switch ($MenuItem) {
@@ -255,13 +254,24 @@ do {
         }
         "3" { #Выбрать папку для обработки файлов мира во вложенных папках
             Clear-Host
-            Write-Host "Данный функционал пока не реализован"
-            Write-Host "Нажмите что-нибудь."
-            $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
-        }
-        "4" { #Выбрать папку для сохранения всех обработанных файлов мира из папки с игрой
-            Clear-Host
-            Write-Host "Данный функционал пока не реализован"
+            $FolderBrowserRead.SelectedPath = ""
+            $FolderBrowserSave.SelectedPath = ""
+            if ($FolderBrowserRead.ShowDialog() -eq "OK") {
+                $FolderBrowserRead.InitialDirectory = $FolderBrowserRead.SelectedPath
+                if ($FolderBrowserSave.ShowDialog() -eq "OK") {
+                    $ReadPath = $FolderBrowserRead.SelectedPath
+                    $SavePath = $FolderBrowserSave.SelectedPath
+                    $SandboxAllFiles = (Get-ChildItem -Path $ReadPath -Filter "SANDBOX_0_0_0_.sbs" -Recurse).FullName
+                    foreach ($SandboxFile in $SandboxAllFiles) {
+                        $BPSavePath = (([System.IO.FileInfo]$SandboxFile).DirectoryName) -replace [regex]::escape($ReadPath),$SavePath
+                        ExtractGrid $SandboxFile $BPSavePath
+                    }
+                } else {
+                    Write-Host "Не выбрана папка для сохранения чертежа"
+                }
+            } else {
+                Write-Host "Не выбрана папка с файлами мира"
+            }
             Write-Host "Нажмите что-нибудь."
             $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null
         }

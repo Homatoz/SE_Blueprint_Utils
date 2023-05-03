@@ -1,6 +1,7 @@
 #Настройки
 $ClearOwner = $false        #Удалять теги Owner и BuiltBy?
 $CreateMultiGrid = $true    #Создавать чертежи объединенных объектов?
+$RemoveDeformation = $true  #Удалять деформации объектов?
 
 #Текст обертки для чертежей
 $Header1 = "<?xml version=""1.0""?>"
@@ -53,6 +54,10 @@ function ExtractGrid {
 
     Select-Xml -Path $PathToSandbox -XPath $XPathCubeGrid -Namespace $SENamespace | ForEach-Object {
         $CubeGridFile +=1
+    #Если включено удаление деформаций и есть деформации, то удаляем
+        if ($RemoveDeformation -and $_.Node.Skeleton) {
+            $_.Node.RemoveChild($_.Node.Skeleton) | Out-Null
+        }
         $CubeGrid = (($_.Node.OuterXml).Split("`r`n").Split("`r").Split("`n"))
         Set-Content -Path ($PathToExtracted+$CubeGridFile.ToString().PadLeft(4,"0")) -Value $CubeGrid[1..($CubeGrid.Length-2)]
     }
@@ -212,6 +217,12 @@ do {
         Write-Host "[ ]" -NoNewline
     }
     Write-Host " W: Создавать чертежи объединенных объектов?"
+    if ($RemoveDeformation) {
+        Write-Host "[X]" -NoNewline
+    } else {
+        Write-Host "[ ]" -NoNewline
+    }
+    Write-Host " E: Удалять деформации объектов?"
     Write-Host
     Write-Host "================================== Действия ==================================="
     if (Test-Path ".\SANDBOX_0_0_0_.sbs" -PathType Leaf) {
@@ -229,6 +240,9 @@ do {
         }
         {@("w","W","ц","Ц") -contains $_ } {
             $CreateMultiGrid = -not $CreateMultiGrid
+        }
+        {@("e","E","у","У") -contains $_ } {
+            $RemoveDeformation = -not $RemoveDeformation
         }
         "1" { #Обработать файл мира в папке со скриптом
             Clear-Host

@@ -3,7 +3,7 @@
 Не найдя на просторах интернета ничего (может быть плохо искал?), что помогло бы мне выдрать из сценариев все чертежи, решил набросать эти скрипты. Ну и поделиться, вдруг пригодятся кому.
 
 Хочу предупредить, что работают они только с PowerShell 7. Скачать его можно здесь:
-<https://github.com/PowerShell/PowerShell/releases>
+<https://github.com/PowerShell/PowerShell/releases/tag/v7.3.4>
 
 ## Sandbox2Blueprints
 

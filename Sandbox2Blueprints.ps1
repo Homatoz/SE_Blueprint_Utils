@@ -19,7 +19,7 @@ $BPTemplate =
 
 #Переменные для работы c Select-Xml
 $SENamespace = @{xsi = "http://www.w3.org/2001/XMLSchema-instance"}
-$XPathCubeGrid = '/MyObjectBuilder_Sector/SectorObjects/MyObjectBuilder_EntityBase[@xsi:type="MyObjectBuilder_CubeGrid"]'
+$XPathCubeGrid = '/MyObjectBuilder_Sector/SectorObjects/MyObjectBuilder_EntityBase[@xsi:type="MyObjectBuilder_CubeGrid"] | /MyObjectBuilder_Sector/SectorObjects/MyObjectBuilder_EntityBase[@xsi:type="MyObjectBuilder_ProxyAntenna"]/ComponentContainer/Components/ComponentData/Component[@xsi:type="MyObjectBuilder_UpdateTrigger"]/SerializedPirateStation'
 
 #Объекты для выбора файлов и папок
 Add-Type -AssemblyName System.Windows.Forms

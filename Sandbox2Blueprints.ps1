@@ -3,20 +3,18 @@ $ClearOwner = $false        #Удалять теги Owner и BuiltBy?
 $CreateMultiGrid = $true    #Создавать чертежи объединенных объектов?
 $RemoveDeformation = $true  #Удалять деформации объектов?
 
-#Текст обертки для чертежей
-$Header1 = "<?xml version=""1.0""?>"
-$Header2 = "<Definitions xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"">"
-$Header3 = "<ShipBlueprints>"
-$Header4 = "<ShipBlueprint xsi:type=""MyObjectBuilder_ShipBlueprintDefinition"">"
-$Header5 = "<Id Type=""MyObjectBuilder_ShipBlueprintDefinition"" Subtype="""
-$Header5_2 = """ />"
-$Header6 = "<CubeGrids>"
-$Header7 = "<CubeGrid>"
-$Footer1 = "</CubeGrid>"
-$Footer2 = "</CubeGrids>"
-$Footer3 = "</ShipBlueprint>"
-$Footer4 = "</ShipBlueprints>"
-$Footer5 = "</Definitions>"
+#Шаблон XML для чертежей
+$BPTemplate = 
+'<?xml version="1.0"?>'+
+'<Definitions xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'+
+'<ShipBlueprints>'+
+'<ShipBlueprint xsi:type="MyObjectBuilder_ShipBlueprintDefinition">'+
+'<Id Type="MyObjectBuilder_ShipBlueprintDefinition" />'+
+'<CubeGrids>'+
+'</CubeGrids>'+
+'</ShipBlueprint>'+
+'</ShipBlueprints>'+
+'</Definitions>'
 
 #Переменные для работы c Select-Xml
 $SENamespace = @{xsi = "http://www.w3.org/2001/XMLSchema-instance"}
@@ -31,6 +29,23 @@ $FolderBrowserSave = New-Object System.Windows.Forms.FolderBrowserDialog -Proper
                                                                                       Description = "Выберите папку для сохранения чертежей";
                                                                                       UseDescriptionForTitle = $True}
 
+#Объекты для работы с XML
+$XMLSandbox = New-Object -TypeName 'System.Xml.XmlDocument'
+$XMLSave = New-Object -TypeName 'System.Xml.XmlDocument'
+$XMLExtracted = New-Object -TypeName 'System.Xml.XmlDocument'
+
+#Функция для удаления всякого трэша
+function RemoveNodes {
+    param (
+        [System.Xml.XmlDocument]$XML,
+        [string]$Name
+    )
+    $XML.SelectNodes("//$Name") | ForEach-Object {
+        $_.ParentNode.RemoveChild($_) | Out-Null
+    }
+}
+
+#Функция выгрызания и формирования чертежей
 function ExtractGrid {
     param ([string]$PathToSandbox, [string]$BPPath)
 
@@ -45,21 +60,31 @@ function ExtractGrid {
     $CountEntity = 0            #Используется для отображения процесса при проверке связей. Процесс иногда слишком долгий...
     $PathToExtracted = $BPPath+"\extracted\"
     
-    #Создаем папки
+    #Создаем папку для выгрызенных объектов
     New-Item -Path $PathToExtracted -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
 
     #Обрабатываем файл Sandbox.
+    Write-Host "Загружаем и чистим Sandbox"
+    Write-Host
+    
+    $XMLSandbox.Load($PathToSandbox)
+
+    if ($ClearOwner) {
+        RemoveNodes -XML $XMLSandbox -Name 'Owner'
+        RemoveNodes -XML $XMLSandbox -Name 'BuiltBy'
+    }
+
+    if ($RemoveDeformation) {
+        RemoveNodes -XML $XMLSandbox -Name 'Skeleton'
+    }
+
     Write-Host "Выгрызаем CubeGrid из Sandbox"
     Write-Host
 
-    Select-Xml -Path $PathToSandbox -XPath $XPathCubeGrid -Namespace $SENamespace | ForEach-Object {
+    Select-Xml -Xml $XMLSandbox -XPath $XPathCubeGrid -Namespace $SENamespace | ForEach-Object {
         $CubeGridFile +=1
-    #Если включено удаление деформаций и есть деформации, то удаляем
-        if ($RemoveDeformation -and $_.Node.Skeleton) {
-            $_.Node.RemoveChild($_.Node.Skeleton) | Out-Null
-        }
-        $CubeGrid = (($_.Node.OuterXml).Split("`r`n").Split("`r").Split("`n"))
-        Set-Content -Path ($PathToExtracted+$CubeGridFile.ToString().PadLeft(4,"0")) -Value $CubeGrid[1..($CubeGrid.Length-2)]
+        $XMLSave.LoadXml($_.Node.OuterXml)
+        $XMLSave.Save($PathToExtracted+$CubeGridFile.ToString().PadLeft(4,"0"))
     }
 
     #Обрабатываем полученные объекты CubeGrid
@@ -68,43 +93,42 @@ function ExtractGrid {
     $ExtractedFiles = Get-ChildItem -Path $PathToExtracted
 
     foreach ($File in $ExtractedFiles){
-    #Забираем либо полностью весь файл, либо вычищаем теги Owner и BuiltBy
-        if ($ClearOwner) {
-            $CubeGridText = (Select-String -Path $File.FullName -Pattern "<Owner>","<BuiltBy>" -NotMatch -Encoding UTF8NoBOM).Line
-        }else{
-            $CubeGridText = Get-Content -Path $File.FullName -Encoding UTF8NoBOM
-        }
-    #Ищем строки с тегом DisplayName и из последнего получаем название для чертежа
-        (Select-String -Path $File.FullName -Pattern "DisplayName")[-1] -match "<DisplayName>(.*)</DisplayName>" | Out-Null
-        $DisplayName = $matches[1] -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
-    #Выводим название чертежа и, при наличии тега AutomaticBehaviour, предупреждаем
-        $AutomaticBehaviour = (Select-String -Path $File.FullName -Pattern "AutomaticBehaviour").Length
-        if ($AutomaticBehaviour -eq 0) {
-            Write-Host $DisplayName
-        } else {
-            Write-Host $DisplayName -NoNewline
-            Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
-        }
-    #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги
+        #Забираем файл
+        $XMLExtracted.Load($File.FullName)
+        #Получаем название для чертежа из DisplayName
+        $DisplayName = $XMLExtracted.SelectSingleNode('*/DisplayName').InnerText
+        $DisplayName = $DisplayName -replace '["?]','_'    #Заменяем символы, которые не подходят для имени файла
+        #Создаем чертеж
+        $XMLSave.LoadXml($BPTemplate)
+        $CubeGridsNode = $XMLSave.SelectSingleNode('//CubeGrids')
+        $CubeGridNewNode = $XMLSave.CreateElement('CubeGrid')
+        $CubeGridsNode.AppendChild($CubeGridNewNode) | Out-Null
+        $CubeGridNewNode.InnerXml = $XMLExtracted.FirstChild.InnerXml
+        $XMLSave.SelectSingleNode('//Id[@Type="MyObjectBuilder_ShipBlueprintDefinition"]').SetAttribute('Subtype',$DisplayName)
+        #Создаем папку чертежа и сохраняем в нее чертеж
         $Path = $BPPath+"\"+$File.Name+"_"+$DisplayName
         $BPFile = $Path+"\bp.sbc"
         New-Item -Path $Path -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
-        Set-Content -Path $BPFile -Value $Header1,$Header2,$Header3,$Header4 -Encoding UTF8NoBOM
-        Add-Content -Path $BPFile -Value $Header5$DisplayName$Header5_2 -Encoding UTF8NoBOM
-        Add-Content -Path $BPFile -Value $Header6,$Header7 -Encoding UTF8NoBOM
-        Add-Content -Path $BPFile -Value $CubeGridText -Encoding UTF8NoBOM
-        Add-Content -Path $BPFile -Value $Footer1,$Footer2,$Footer3,$Footer4,$Footer5 -Encoding UTF8NoBOM
+        $XMLSave.Save($BPFile)
+        #Выводим название чертежа и, при наличии тега AutomaticBehaviour, предупреждаем
+        $AutomaticBehaviour = $XMLSave.SelectSingleNode('//AutomaticBehaviour')
+        if ($AutomaticBehaviour) {
+            Write-Host $DisplayName -NoNewline
+            Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
+        } else {
+            Write-Host $DisplayName
+        }
     }
     Write-Host
 
     #Обработка связанных объектов
     if ($CreateMultiGrid) {
-    #Создаем список для хранения связей объектов
+        #Создаем список для хранения связей объектов
         $Links = [System.Collections.Generic.List[pscustomobject]]::new()
-    #Собираем все строки, содержащие строки с ID для связываемых объектов, а также ID всех объектов
+        #Собираем все строки, содержащие строки с ID для связываемых объектов, а также ID всех объектов
         $LinkedEntities = Select-String -Path ($PathToExtracted+"*") -Pattern "<ParentEntityId>","<TopBlockId>"
         $Entities = Select-String -Path ($PathToExtracted+"*") -Pattern "<EntityId>"
-    #Собираем связи между файлами, на основании которых они будут собираться в единый файл чертежа
+        #Собираем связи между файлами, на основании которых они будут собираться в единый файл чертежа
         Write-Host "Начинается проверка", $LinkedEntities.Count, "связей"
         foreach ($LinkedEntity in $LinkedEntities) {
             $CountEntity += 1
@@ -122,10 +146,10 @@ function ExtractGrid {
         Write-Host "Проверка связей завершена"
         Write-Host
 
-    #Создаем мультиобъекты, пока список связей не опустеет
+        #Создаем мультиобъекты, пока список связей не опустеет
         Write-Host "Создание мультиобъектов"
         while ($Links.Count -ne 0){
-    #Начиная с первой доступной записи начинаем пополнять список связанных файлов, удаляя обработанные записи
+            #Начиная с первой доступной записи начинаем пополнять список связанных файлов, удаляя обработанные записи
             $CubeGridFileList = [string[]] $Links[0].in
             do {
                 $TempFileList = $Links | Where-Object {$_.in -in $CubeGridFileList}
@@ -142,56 +166,43 @@ function ExtractGrid {
                 $CubeGridFileList += $TempFileList.in
                 $LinksOut = $TempFileList.Count
             } until (($LinksIn -eq 0) -and ($LinksOut -eq 0))
-    #Очищаем полученный список от дублей
+            #Очищаем полученный список от дублей
             $CubeGridFileList = $CubeGridFileList | Sort-Object -Unique
-    #Вычисляем наиболее объемный (в блоках) объект и берем его имя для чертежа
+            #Инициализируем переменные для поиска самого большого объекта
             $CountCubeBlocks = 0
             $MaxCubeBlockFile = ""
-
+            #Создаем чертеж
+            $XMLSave.LoadXml($BPTemplate)
+            $CubeGridsNode = $XMLSave.SelectSingleNode('//CubeGrids')
+            #Добавляем все объекты из полученного списка
             foreach ($CubeGridFile in $CubeGridFileList) {
-                $CurrentCount = (Select-String -Path ($PathToExtracted+$CubeGridFile) -Pattern "<MyObjectBuilder_CubeBlock").Count
-                if ($CountCubeBlocks -lt $CurrentCount) {
-                    $CountCubeBlocks = $CurrentCount
+                $XMLExtracted.Load($PathToExtracted+$CubeGridFile)
+                $CubeBlocks = $XMLExtracted.SelectNodes('*/CubeBlocks/MyObjectBuilder_CubeBlock')
+                #Ищем самый большой (в блоках) объект и берем его имя для чертежа
+                if ($CountCubeBlocks -lt $CubeBlocks.Count) {
+                    $CountCubeBlocks = $CubeBlocks.Count
                     $MaxCubeBlockFile = $CubeGridFile
+                    $DisplayName = $XMLExtracted.SelectSingleNode('*/DisplayName').InnerText
                 }
+                $CubeGridNewNode = $XMLSave.CreateElement('CubeGrid')
+                $CubeGridsNode.AppendChild($CubeGridNewNode) | Out-Null
+                $CubeGridNewNode.InnerXml = $XMLExtracted.FirstChild.InnerXml
             }
-
-            (Select-String ($PathToExtracted+$MaxCubeBlockFile) -Pattern "DisplayName")[-1] -match "<DisplayName>(.*)</DisplayName>" | Out-Null
-            $DisplayName = ($matches[1] -replace '["?]','_') + " Multi"         #Заменяем символы, которые не подходят для имени файла
-            $DirName = $matches[1] -replace '["?]','_'                          #Заменяем символы, которые не подходят для имени файла
-
-    #Создаем папку чертежа и сохраняем в нее чертеж, добавляя необходимые теги заголовка
-            $MultiName = $MaxCubeBlockFile+"_"+$DirName+" Multi"
+            $DisplayName = ($DisplayName -replace '["?]','_') + " Multi"    #Заменяем символы, которые не подходят для имени файла
+            $XMLSave.SelectSingleNode('//Id[@Type="MyObjectBuilder_ShipBlueprintDefinition"]').SetAttribute('Subtype',$DisplayName)
+            #Создаем папку чертежа и сохраняем в нее чертеж
+            $MultiName = $MaxCubeBlockFile+"_"+$DisplayName
             $Path = $BPPath+"\"+$MultiName
             $BPFile = $Path+"\bp.sbc"
             New-Item -Path $Path -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
-            Set-Content -Path $BPFile -Value $Header1,$Header2,$Header3,$Header4 -Encoding UTF8NoBOM
-            Add-Content -Path $BPFile -Value $Header5$DisplayName$Header5_2 -Encoding UTF8NoBOM
-            Add-Content -Path $BPFile -Value $Header6 -Encoding UTF8NoBOM
-    #Добавляем все гриды из полученного списка
-            foreach ($CubeGridFile in $CubeGridFileList) {
-    #Добавляем тег CubeGrid
-                Add-Content -Path $BPFile -Value $Header7 -Encoding UTF8NoBOM
-    #Забираем либо полностью весь файл, либо вычищаем теги Owner и BuiltBy
-                if ($ClearOwner) {
-                    $Text = (Select-String -Path ($PathToExtracted+$CubeGridFile) -Pattern "<Owner>","<BuiltBy>" -NotMatch -Encoding UTF8NoBOM).Line
-                }else{
-                    $Text = Get-Content -Path ($PathToExtracted+$CubeGridFile) -Encoding UTF8NoBOM
-                }
-    #Сохраняем чертеж этого грида
-                Add-Content -Path $BPFile -Value $Text -Encoding UTF8NoBOM
-    #Закрываем тег CubeGrid
-                Add-Content -Path $BPFile -Value $Footer1 -Encoding UTF8NoBOM
-            }
-    #Добавляем закрывающие теги для чертежа
-            Add-Content -Path $BPFile -Value $Footer2,$Footer3,$Footer4,$Footer5 -Encoding UTF8NoBOM
-    #Выводим название чертежа и, при наличии тега AutomaticBehaviour, предупреждаем
-            $AutomaticBehaviour = (Select-String -Path $BPFile -Pattern "AutomaticBehaviour").Length
-            if ($AutomaticBehaviour -eq 0) {
-                Write-Host $DisplayName
-            } else {
+            $XMLSave.Save($BPFile)
+            #Выводим название чертежа и, при наличии тега AutomaticBehaviour, предупреждаем
+            $AutomaticBehaviour = $XMLSave.SelectSingleNode('//AutomaticBehaviour')
+            if ($AutomaticBehaviour) {
                 Write-Host $DisplayName -NoNewline
                 Write-Host " (присутствует AutomaticBehaviour)" -ForegroundColor Red
+            } else {
+                Write-Host $DisplayName
             }
             Add-Content -Path ($BPPath+"\MultiList.txt") -Value ($MultiName+" - "+$CubeGridFileList -join " ")
         }

@@ -3,6 +3,7 @@ $ClearOwner = $false        #Удалять теги Owner и BuiltBy?
 $CreateMultiGrid = $true    #Создавать чертежи объединенных объектов?
 $RemoveDeformation = $true  #Удалять деформации объектов?
 $RemoveAI = $true			#Удалять автоматическое поведение?
+$ExtractProjectorBP = $true #Извлекать чертежи из проектора?
 
 #Шаблон XML для чертежей
 $BPTemplate = 
@@ -43,6 +44,21 @@ function RemoveNodes {
     )
     $XML.SelectNodes("//$Name") | ForEach-Object {
         $_.ParentNode.RemoveChild($_) | Out-Null
+    }
+}
+
+function ExtractProjectorGrid {
+    param (
+        [System.Xml.XmlNode]$Node,
+        [string]$FileName
+    )
+    $Projector = 0
+    $Node.SelectNodes('./CubeBlocks/MyObjectBuilder_CubeBlock/ProjectedGrid | ./CubeBlocks/MyObjectBuilder_CubeBlock/ProjectedGrids/MyObjectBuilder_CubeGrid') | ForEach-Object {
+        $Projector += 1
+        $_.SetAttribute("xmlns:xsi","http://www.w3.org/2001/XMLSchema-instance")
+        $XMLSave.LoadXml($_.OuterXml)
+        $XMLSave.Save($PathToExtracted+$FileName+"p"+$Projector)
+        ExtractProjectorGrid -Node $_ -FileName $FileName"p"$Projector
     }
 }
 
@@ -90,6 +106,9 @@ function ExtractGrid {
         $CubeGridFile +=1
         $XMLSave.LoadXml($_.Node.OuterXml)
         $XMLSave.Save($PathToExtracted+$CubeGridFile.ToString().PadLeft(4,"0"))
+        if ($ExtractProjectorBP -and $_.Node.SelectSingleNode('./CubeBlocks/MyObjectBuilder_CubeBlock/ProjectedGrid | ./CubeBlocks/MyObjectBuilder_CubeBlock/ProjectedGrids/MyObjectBuilder_CubeGrid')) {
+            ExtractProjectorGrid -Node $_.Node -FileName $CubeGridFile.ToString().PadLeft(4,"0")
+        }
     }
 
     #Обрабатываем полученные объекты CubeGrid
@@ -245,6 +264,12 @@ do {
         Write-Host "[ ]" -NoNewline
     }
     Write-Host " R: Удалять автоматическое поведение?"
+    if ($ExtractProjectorBP) {
+        Write-Host "[X]" -NoNewline
+    } else {
+        Write-Host "[ ]" -NoNewline
+    }
+    Write-Host " T: Извлекать чертежи из проектора?"
     Write-Host
     Write-Host "================================== Действия ==================================="
     if (Test-Path ".\SANDBOX_0_0_0_.sbs" -PathType Leaf) {
@@ -268,6 +293,9 @@ do {
         }
         {@("r","R","к","К") -contains $_ } {
             $RemoveAI = -not $RemoveAI
+        }
+        {@("t","T","е","Е") -contains $_ } {
+            $ExtractProjectorBP = -not $ExtractProjectorBP
         }
         "1" { #Обработать файл мира в папке со скриптом
             Clear-Host

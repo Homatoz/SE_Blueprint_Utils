@@ -2,6 +2,7 @@
 $ClearOwner = $false        #Удалять теги Owner и BuiltBy?
 $CreateMultiGrid = $true    #Создавать чертежи объединенных объектов?
 $RemoveDeformation = $true  #Удалять деформации объектов?
+$RemoveAI = $true			#Удалять автоматическое поведение?
 
 #Шаблон XML для чертежей
 $BPTemplate = 
@@ -76,6 +77,10 @@ function ExtractGrid {
 
     if ($RemoveDeformation) {
         RemoveNodes -XML $XMLSandbox -Name 'Skeleton'
+    }
+
+    if ($RemoveAI) {
+        RemoveNodes -XML $XMLSandbox -Name 'AutomaticBehaviour'
     }
 
     Write-Host "Выгрызаем CubeGrid из Sandbox"
@@ -234,6 +239,12 @@ do {
         Write-Host "[ ]" -NoNewline
     }
     Write-Host " E: Удалять деформации объектов?"
+    if ($RemoveAI) {
+        Write-Host "[X]" -NoNewline
+    } else {
+        Write-Host "[ ]" -NoNewline
+    }
+    Write-Host " R: Удалять автоматическое поведение?"
     Write-Host
     Write-Host "================================== Действия ==================================="
     if (Test-Path ".\SANDBOX_0_0_0_.sbs" -PathType Leaf) {
@@ -254,6 +265,9 @@ do {
         }
         {@("e","E","у","У") -contains $_ } {
             $RemoveDeformation = -not $RemoveDeformation
+        }
+        {@("r","R","к","К") -contains $_ } {
+            $RemoveAI = -not $RemoveAI
         }
         "1" { #Обработать файл мира в папке со скриптом
             Clear-Host

@@ -147,25 +147,22 @@ function ExtractGrid {
 
     #Обработка связанных объектов
     if ($CreateMultiGrid) {
+        Write-Host "Начинается проверка связей"
         #Создаем список для хранения связей объектов
         $Links = [System.Collections.Generic.List[pscustomobject]]::new()
         #Собираем все строки, содержащие строки с ID для связываемых объектов, а также ID всех объектов
-        $LinkedEntities = Select-String -Path ($PathToExtracted+"*") -Pattern "<ParentEntityId>","<TopBlockId>"
-        $Entities = Select-String -Path ($PathToExtracted+"*") -Pattern "<EntityId>"
+        $LinkedEntities = Select-Xml -Path ($PathToExtracted+"*") -XPath "//ParentEntityId | //TopBlockId" |
+                            Select-Object @{label = "EntityId"; expression = {$_.Node.InnerText}},@{label = "Filename"; expression = {Split-Path $_.Path -Leaf}} |
+                            Where-Object {$_.EntityId -ne "0"}
+        $Entities = Select-Xml -Path ($PathToExtracted+"*") -XPath "//EntityId" |
+                            Where-Object {$_.Node.InnerText -in $LinkedEntities.EntityId} |
+                            Select-Object @{label = "EntityId"; expression = {$_.Node.InnerText}},@{label = "Filename"; expression = {Split-Path $_.Path -Leaf}}
         #Собираем связи между файлами, на основании которых они будут собираться в единый файл чертежа
-        Write-Host "Начинается проверка", $LinkedEntities.Count, "связей"
         foreach ($LinkedEntity in $LinkedEntities) {
-            $CountEntity += 1
-            if (($CountEntity % 50) -eq 0) {
-                Write-Host "Проверено", $CountEntity, "связей"
+            $Entity = $Entities | Where-Object {$_.EntityId -eq $LinkedEntity.EntityId}
+            if ($Entity.count -ne 0) {
+                $Links.Add([pscustomobject]@{in=$LinkedEntity.Filename;out=$Entity.Filename})
             }
-            $LinkedEntity -match "(<ParentEntityId>|<TopBlockId>)(.*)(<\/ParentEntityId>|<\/TopBlockId>)" | Out-Null
-            if ($matches[2] -ne "0") {
-                $Entity = $Entities | Select-String -Pattern $matches[2]
-                if ($Entity.count -ne 0) {
-                    $Links.Add([pscustomobject]@{in=$LinkedEntity.Filename;out=$Entity.Filename})
-                }
-            }    
         }
         Write-Host "Проверка связей завершена"
         Write-Host
